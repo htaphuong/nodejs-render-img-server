@@ -3,6 +3,9 @@ const _ = require('lodash');
 const path = require('path')
 const multer = require('multer')
 
+const lowdb = require('lowdb');     // supported for local JSON Database
+const FileAsync = require('lowdb/adapters/FileAsync');  // Asynchronus adapter
+
 const app = express();
 
 // Routes 
@@ -18,13 +21,20 @@ app.get('/', (req, res) =>
 const port = process.env.PORT || 9999;
 app.listen(port);
 
+const adapter = new FileAsync('db.json');
+const db = (async connection => {
+    const dbConnection = await connection;
+    await dbConnection.defaults({ resource: [], users: [] }).write();
+    return dbConnection;
+})(lowdb(adapter));
+
 // Upload image
-const allowTypes = ['image/png', 'image/jpeg', 'image/gif'];
+const allowTypes = process.env.ALLOW_TYPE.split(',').map(type => type.trim());
 const uploadConfig = {
-    fields: 17,
-    files: 17,
-    fileSize: 100 * 1048576,
-    parts: 17
+    fields: process.env.MAX_FIELD || 19,
+    files: process.env.MAX_FILE || 19,
+    fileSize: (process.env.MAX_SIZE || 100) * 1048576,
+    parts: process.env.MAX_PART || 19
 };
 
 const storage = multer.diskStorage({
@@ -36,7 +46,8 @@ const storage = multer.diskStorage({
     },
     
     filename(req, { originalname, mimetype }, cb) {
-        //console.log({mimetype})
+        // console.log({mimetype})
+        // console.log(allowTypes)
         const nameSegments = originalname.split('.');
         const name = nameSegments[0] || `${Date.now()}`;
 
@@ -48,6 +59,7 @@ const storage = multer.diskStorage({
 
 const fileFilter = (req, { mimetype }, cb) => {
     //console.log({mimetype})
+    //console.log(allowTypes)    
     cb(null, Boolean(allowTypes.indexOf(mimetype) > -1));
 }
 
@@ -56,5 +68,4 @@ const uploader = multer({ storage, fileFilter, limits: uploadConfig });
 app.post('/upload', uploader.array('iImages'), (req, res) => {
     //console.log(req)
     res.json({ images: req.files })
-}
-);
+});
